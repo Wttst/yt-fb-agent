@@ -1,0 +1,49 @@
+name: Daily YT Shorts to FB Reels
+
+on:
+  schedule:
+    # Din mein 2 baar chalega (Subah 10:00 AM PKT aur Raat 8:00 PM PKT)
+    - cron: "0 5 * * *"
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  auto-post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Restore DB Cache
+        uses: actions/cache@v4
+        with:
+          path: yt_fb_crosspost.db
+          key: crosspost-db-${{ github.run_id }}
+          restore-keys: |
+            crosspost-db-
+
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies
+        run: pip install -r requirements.txt
+
+      - name: Import Pages from CSV (if exists)
+        run: |
+          if [ -f pages.csv ]; then
+            python worker.py import-pages pages.csv || true
+          fi
+
+      - name: Run Auto-Post Worker
+        env:
+          FB_PAGE_TOKENS_JSON: ${{ secrets.FB_PAGE_TOKENS_JSON }}
+        run: python worker.py run --no-delay
+        
